@@ -131,12 +131,18 @@ def MyMapReduce(mapper, reducer, DFSInputFile, DFSOutputFile):
     UploadFile("thumm02", 31728, "MapInput_02")
     UploadFile("thumm03", 31728, "MapInput_03")
     UploadFile("thumm04", 31728, "MapInput_04")
+    os.remove("MapInput_02")
+    os.remove("MapInput_03")
+    os.remove("MapInput_04")
     print "MapInput send complete"
     #run Mapper
     RunRemotePyScript("thumm02", 31728, mapper, "MapInput_02", "MapResult_02")
     RunRemotePyScript("thumm03", 31728, mapper, "MapInput_03", "MapResult_03")
     RunRemotePyScript("thumm04", 31728, mapper, "MapInput_04", "MapResult_04")
     os.system("cat MapResult_02 MapResult_03 MapResult_04 > MapMidResult")
+    os.remove("MapResult_02")
+    os.remove("MapResult_03")
+    os.remove("MapResult_04")
     #prepare reducer input file
     fr = open("MapMidResult", 'r')
     pairs = fr.readlines()
@@ -187,10 +193,15 @@ def MyMapReduce(mapper, reducer, DFSInputFile, DFSOutputFile):
     UploadFile("thumm02", 31728, "ReduceInput_02")
     UploadFile("thumm03", 31728, "ReduceInput_03")
     UploadFile("thumm04", 31728, "ReduceInput_04")
+    os.remove("ReduceInput_02")
+    os.remove("ReduceInput_03")
+    os.remove("ReduceInput_04")
     print "ReduceInput send complete"
     #run reducer
     RunRemotePyScript("thumm02", 31728, reducer, "ReduceInput_02", "ReduceResult_02")
     RunRemotePyScript("thumm03", 31728, reducer, "ReduceInput_03", "ReduceResult_03")
     RunRemotePyScript("thumm04", 31728, reducer, "ReduceInput_04", "ReduceResult_04")
     os.system("cat ReduceResult_02 ReduceResult_03 ReduceResult_04 > ReduceResult")
-    
+    os.remove("ReduceResult_02")
+    os.remove("ReduceResult_03")
+    os.remove("ReduceResult_04")
