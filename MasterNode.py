@@ -11,38 +11,6 @@ import name_node
 
 HEAD_STRUCT = 'I128sI'
 
-def DownloadFile(addr, port, file_name):
-    try:
-        buffer_size = 1024
-
-        #Create a TCP/IP socket
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-        #Connect the socket to the port where the server is listening
-        server_address = (addr, port)
-        print >>sys.stderr, 'connecting to %s port %s' % server_address
-        sock.connect(server_address)
-
-        #Send file_name to data_node
-        print >>sys.stderr, 'Get %s from data_node' % file_name
-        sent_info = struct.pack(HEAD_STRUCT, 0, file_name, len(file_name)) #DownloadFile = 0
-        sock.send(sent_info)
-
-        #Look for the response
-        fopen = open(file_name, 'wb')
-        one_slice = sock.recv(buffer_size)
-        while one_slice :
-            fopen.write(one_slice)
-            fopen.flush()
-            one_slice = sock.recv(buffer_size)
-        fopen.close()
-        print >>sys.stderr, 'closing socket'
-        sock.close()
-        return True
-    except:
-        print  "There is some error!"
-        return False
-
 def UploadFile(addr, port, file_name):
     try:
         #Create a TCP/IP socket
@@ -125,12 +93,9 @@ class UploadFileThread(threading.Thread):
         UploadFile(self.addr, self.port, self.file_name)
         print "Exiting thread " + self.name
 
-def MyMapReduce(mapper, reducer, DFSInputFile, DFSOutputFile):
+def MyMapReduce(mapper, reducer, DFSInputFile, OutputFile):
+#（1）主节点上传输入文件和任务脚本
     start = time.clock()
-    #prepare mapper input file
-    #UploadFile("thumm02", 31728, mapper)
-    #UploadFile("thumm03", 31728, mapper)
-    #UploadFile("thumm04", 31728, mapper)
     upload_t2 = UploadFileThread("upload_t2", "thumm02", 31728, mapper)
     upload_t3 = UploadFileThread("upload_t3", "thumm03", 31728, mapper)
     upload_t4 = UploadFileThread("upload_t4", "thumm04", 31728, mapper)
@@ -140,11 +105,7 @@ def MyMapReduce(mapper, reducer, DFSInputFile, DFSOutputFile):
     upload_t2.join()
     upload_t3.join()
     upload_t4.join()
-
     print "mapper send complete"
-    #UploadFile("thumm02", 31728, reducer)
-    #UploadFile("thumm03", 31728, reducer)
-    #UploadFile("thumm04", 31728, reducer)
     upload_t2 = UploadFileThread("upload_t2", "thumm02", 31728, reducer)
     upload_t3 = UploadFileThread("upload_t3", "thumm03", 31728, reducer)
     upload_t4 = UploadFileThread("upload_t4", "thumm04", 31728, reducer)
@@ -154,7 +115,6 @@ def MyMapReduce(mapper, reducer, DFSInputFile, DFSOutputFile):
     upload_t2.join()
     upload_t3.join()
     upload_t4.join()
-
     print "reducer send complete"
     name_node.DFSLoad(DFSInputFile, "MapInput")
     finput = open("MapInput", 'r')
@@ -177,9 +137,6 @@ def MyMapReduce(mapper, reducer, DFSInputFile, DFSOutputFile):
     finput_03.close()
     finput_04.close()
     print "begin send MapInput"
-    #UploadFile("thumm02", 31728, "MapInput_02")
-    #UploadFile("thumm03", 31728, "MapInput_03")
-    #UploadFile("thumm04", 31728, "MapInput_04")
     upload_t2 = UploadFileThread("upload_t2", "thumm02", 31728, "MapInput_02")
     upload_t3 = UploadFileThread("upload_t3", "thumm03", 31728, "MapInput_03")
     upload_t4 = UploadFileThread("upload_t4", "thumm04", 31728, "MapInput_04")
@@ -189,15 +146,13 @@ def MyMapReduce(mapper, reducer, DFSInputFile, DFSOutputFile):
     upload_t2.join()
     upload_t3.join()
     upload_t4.join()
-
     os.remove("MapInput_02")
     os.remove("MapInput_03")
     os.remove("MapInput_04")
     print "MapInput send complete"
+
+#（2）从节点并发执行mapper并回传中间结果
     #run Mapper
-    #RunRemotePyScript("thumm02", 31728, mapper, "MapInput_02", "MapResult_02")
-    #RunRemotePyScript("thumm03", 31728, mapper, "MapInput_03", "MapResult_03")
-    #RunRemotePyScript("thumm04", 31728, mapper, "MapInput_04", "MapResult_04")
     mapper_t2 = RunRemotePyScriptThread("mapper_t2", "thumm02", 31728, mapper, "MapInput_02", "MapResult_02")
     mapper_t3 = RunRemotePyScriptThread("mapper_t3", "thumm03", 31728, mapper, "MapInput_03", "MapResult_03")
     mapper_t4 = RunRemotePyScriptThread("mapper_t4", "thumm04", 31728, mapper, "MapInput_04", "MapResult_04")
@@ -207,11 +162,12 @@ def MyMapReduce(mapper, reducer, DFSInputFile, DFSOutputFile):
     mapper_t2.join()
     mapper_t3.join()
     mapper_t4.join()
-
     os.system("cat MapResult_02 MapResult_03 MapResult_04 > MapMidResult")
     os.remove("MapResult_02")
     os.remove("MapResult_03")
     os.remove("MapResult_04")
+
+#（3）主节点整合中间结果之后上传
     #prepare reducer input file
     fr = open("MapMidResult", 'r')
     pairs = fr.readlines()
@@ -228,7 +184,6 @@ def MyMapReduce(mapper, reducer, DFSInputFile, DFSOutputFile):
         stripedLine = line.strip()
         key2, value2 = stripedLine.split()
     splitCount_2 = length/3+count
-
     line = mapSortedResult[length*2/3]
     stripedLine = line.strip()
     key2, value2 = stripedLine.split()
@@ -240,7 +195,6 @@ def MyMapReduce(mapper, reducer, DFSInputFile, DFSOutputFile):
         stripedLine = line.strip()
         key2, value2 = stripedLine.split()
     splitCount_3 = length*2/3+count
-
     fw2 = open("ReduceInput_02", 'wb')
     fw3 = open("ReduceInput_03", 'wb')
     fw4 = open("ReduceInput_04", 'wb')
@@ -259,9 +213,6 @@ def MyMapReduce(mapper, reducer, DFSInputFile, DFSOutputFile):
     fw4.close()
     fr.close()
     print "begin send ReduceInput"
-    #UploadFile("thumm02", 31728, "ReduceInput_02")
-    #UploadFile("thumm03", 31728, "ReduceInput_03")
-    #UploadFile("thumm04", 31728, "ReduceInput_04")
     upload_t2 = UploadFileThread("upload_t2", "thumm02", 31728, "ReduceInput_02")
     upload_t3 = UploadFileThread("upload_t3", "thumm03", 31728, "ReduceInput_03")
     upload_t4 = UploadFileThread("upload_t4", "thumm04", 31728, "ReduceInput_04")
@@ -275,10 +226,9 @@ def MyMapReduce(mapper, reducer, DFSInputFile, DFSOutputFile):
     os.remove("ReduceInput_03")
     os.remove("ReduceInput_04")
     print "ReduceInput send complete"
+
+#(4)从节点并发执行reducer并回传最终结果
     #run reducer
-    #RunRemotePyScript("thumm02", 31728, reducer, "ReduceInput_02", "ReduceResult_02")
-    #RunRemotePyScript("thumm03", 31728, reducer, "ReduceInput_03", "ReduceResult_03")
-    #RunRemotePyScript("thumm04", 31728, reducer, "ReduceInput_04", "ReduceResult_04")
     reducer_t2 = RunRemotePyScriptThread("reducer_t2", "thumm02", 31728, reducer, "ReduceInput_02", "ReduceResult_02")
     reducer_t3 = RunRemotePyScriptThread("reducer_t3", "thumm03", 31728, reducer, "ReduceInput_03", "ReduceResult_03")
     reducer_t4 = RunRemotePyScriptThread("reducer_t4", "thumm04", 31728, reducer, "ReduceInput_04", "ReduceResult_04")
@@ -288,9 +238,12 @@ def MyMapReduce(mapper, reducer, DFSInputFile, DFSOutputFile):
     reducer_t2.join()
     reducer_t3.join()
     reducer_t4.join()
-    os.system("cat ReduceResult_02 ReduceResult_03 ReduceResult_04 > ReduceResult")
+#(5)整合最终结果
+    command = "cat ReduceResult_02 ReduceResult_03 ReduceResult_04 > %s" % OutputFile
+    os.system(command)
     os.remove("ReduceResult_02")
     os.remove("ReduceResult_03")
     os.remove("ReduceResult_04")
     elapsed = (time.clock() - start)
     print "MyMapReduce Time used: %d seconds" % elapsed
+    

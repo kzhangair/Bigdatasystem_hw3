@@ -5,6 +5,11 @@ import sys
 import struct
 import os
 
+def SortKey(s):
+    line = s.strip()
+    k2, value2 = line.split()
+    return k2
+
 HEAD_STRUCT = 'I128sI'
 info_size = struct.calcsize(HEAD_STRUCT)
 buffer_size = 1024
@@ -61,11 +66,12 @@ while True :
             print 'Run Python Script %s' % script_name
             command = "python " + script_name + " < " + script_input + " > MapResult"
             os.system(command)
-
             fopen = open("MapResult", 'rb')
+            lines = fopen.readlines()
+            mapSortedResult = sorted(lines, key=SortKey)
             count = 0
             print 'Begin to send MapResult'
-            for slice in fopen:
+            for slice in mapSortedResult:
                 connection.send(slice)
             print >>sys.stderr, 'File send complete...'
             fopen.close()
